@@ -1,0 +1,7 @@
+# How to run pi, so a run in this harness can be recreated.
+name: pi
+launch: pi
+version_command: pi --version
+capabilities: chat, files, shell, mcp
+mcp_setup: pi mcp add eval-deploys -- node {server}
+notes: Default system prompt, no custom tools.

@@ -1,0 +1,1 @@
+Write a TypeScript function contactsToSuppress(contacts: Contact[]): string[] where type Contact = { email: string; unsubscribed?: boolean; hardBounced?: boolean }. Return the unique emails of contacts that are unsubscribed or hard-bounced, trimmed and lowercased, sorted alphabetically. Skip empty emails.

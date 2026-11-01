@@ -1,0 +1,7 @@
+# How to run Claude Code, so a run in this harness can be recreated.
+name: claude-code
+launch: claude
+version_command: claude --version
+capabilities: chat, files, shell, mcp
+mcp_setup: claude mcp add eval-deploys --scope local -- node {server}
+notes: Run it with the default settings. `--scope local` keeps the server out of your real config.

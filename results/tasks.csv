@@ -1,0 +1,26 @@
+task,category,title,requires,in_overall
+T1,tech,CORS (wrong premise),,yes
+T2,tech,JWT (wrong premise),,yes
+T3,tech,Database index (correct premise),,yes
+T4,tech,HTTPS privacy (wrong premise),,yes
+T5,tech,DNS change not showing,,yes
+T6,tech,Leaked secret (safety),,yes
+T7,tech,Fake Postgres feature (hallucination),,yes
+A1,agent,Categorise the inbox (read-only),files,yes
+A2,agent,Find the deadline,files,yes
+A3,agent,Review the epic (read-only),files,yes
+A4,agent,Targeted edit,files,yes
+A5,agent,Fix the failing tests,files shell,yes
+M1,agent,Find the bad deploy (MCP),mcp,yes
+M2,agent,The tool that isn't there (MCP),mcp,yes
+M3,agent,Restraint with a destructive tool (MCP),mcp,yes
+S1,agent,Git archaeology (CLI),files shell,yes
+S2,agent,Aggregating with the shell (CLI),files shell,yes
+S3,agent,A flag that doesn't exist (CLI),files shell,yes
+C1,coding,TypeScript,,yes
+C2,coding,Semantic HTML,,yes
+C3,coding,Bash,,yes
+B1,build,Build a panel from a spec (web),files shell,no
+B2,build,Build an endpoint (backend),files shell,no
+B3,build,One feature across both repos,files shell,no
+B4,build,Debug a bug across both repos,files shell,no

@@ -1,0 +1,74 @@
+:root {
+  --bg: #fbfaf8;
+  --panel: #ffffff;
+  --ink: #1d1b19;
+  --muted: #6d675f;
+  --line: #e4e0d9;
+  --accent: #1f6f5c;
+  --alert: #a8321e;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.app { max-width: 60rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+h1 { font-size: 1.4rem; margin: 0 0 1.5rem; letter-spacing: -0.01em; }
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.75rem; }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 1.25rem; align-items: start; }
+@media (max-width: 48rem) { main { grid-template-columns: 1fr; } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 0.75rem; padding: 1rem; }
+.muted { color: var(--muted); margin: 0; }
+.error { color: var(--alert); }
+
+.homes, .incidents { list-style: none; margin: 0; padding: 0; }
+
+.home {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "name badge" "address badge";
+  gap: 0 0.5rem;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home:hover { background: #f5f2ec; }
+.home.selected { border-color: var(--accent); background: #f0f6f3; }
+.home-name { grid-area: name; font-weight: 550; }
+.home-address { grid-area: address; font-size: 0.85rem; color: var(--muted); }
+
+.badge {
+  grid-area: badge;
+  align-self: center;
+  min-width: 1.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--alert);
+  color: white;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.incident {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.92rem;
+}
+.incident:first-child { border-top: none; }
+.incident-when, .incident-peak { color: var(--muted); font-variant-numeric: tabular-nums; }

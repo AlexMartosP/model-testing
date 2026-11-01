@@ -1,0 +1,17 @@
+{
+  "homes": [
+    { "id": "h-01", "name": "Lindholmen 4A", "address": "Lindholmsallén 4A, Göteborg", "timezone": "Europe/Stockholm", "devices": 3 },
+    { "id": "h-02", "name": "Sveavägen 112", "address": "Sveavägen 112, Stockholm", "timezone": "Europe/Stockholm", "devices": 2 },
+    { "id": "h-03", "name": "Nørrebrogade 18", "address": "Nørrebrogade 18, København", "timezone": "Europe/Copenhagen", "devices": 5 },
+    { "id": "h-04", "name": "Hafenstraße 7", "address": "Hafenstraße 7, Hamburg", "timezone": "Europe/Berlin", "devices": 1 }
+  ],
+  "incidents": [
+    { "id": "i-1001", "homeId": "h-01", "kind": "noise", "startedAt": "2026-10-31T22:14:00Z", "endedAt": null, "peakDb": 86, "status": "open" },
+    { "id": "i-1002", "homeId": "h-01", "kind": "noise", "startedAt": "2026-10-30T23:40:00Z", "endedAt": "2026-10-31T00:12:00Z", "peakDb": 79, "status": "resolved" },
+    { "id": "i-1003", "homeId": "h-01", "kind": "occupancy", "startedAt": "2026-10-29T18:02:00Z", "endedAt": null, "peakDb": null, "status": "open" },
+    { "id": "i-1004", "homeId": "h-02", "kind": "offline", "startedAt": "2026-10-28T09:30:00Z", "endedAt": "2026-10-28T11:05:00Z", "peakDb": null, "status": "resolved" },
+    { "id": "i-1005", "homeId": "h-03", "kind": "noise", "startedAt": "2026-11-01T01:20:00Z", "endedAt": null, "peakDb": 91, "status": "open" },
+    { "id": "i-1006", "homeId": "h-03", "kind": "noise", "startedAt": "2026-10-27T22:55:00Z", "endedAt": "2026-10-27T23:30:00Z", "peakDb": 82, "status": "resolved" },
+    { "id": "i-1007", "homeId": "h-03", "kind": "occupancy", "startedAt": "2026-10-26T20:10:00Z", "endedAt": null, "peakDb": null, "status": "open" }
+  ]
+}

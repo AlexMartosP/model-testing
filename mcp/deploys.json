@@ -1,0 +1,166 @@
+{
+  "generated_for": "LLM eval fixtures. Fictional data, deliberately shaped so some answers are wrong on purpose.",
+  "now": "2026-11-01T10:30:00Z",
+  "services": ["checkout", "billing", "notifications"],
+  "deploys": [
+    {
+      "id": "d-1051",
+      "service": "billing",
+      "commit": "8a3f1c2",
+      "author": "dan@example.com",
+      "started_at": "2026-11-01T07:55:00Z",
+      "duration_s": 182,
+      "status": "success",
+      "notes": "New invoice PDF template."
+    },
+    {
+      "id": "d-1050",
+      "service": "checkout",
+      "commit": "41b9de7",
+      "author": "priya@example.com",
+      "started_at": "2026-11-01T07:52:00Z",
+      "duration_s": 46,
+      "status": "failed",
+      "notes": "Build failed before the rollout started: type error in tax.ts. Nothing reached production."
+    },
+    {
+      "id": "d-1049",
+      "service": "checkout",
+      "commit": "c7e02a9",
+      "author": "priya@example.com",
+      "started_at": "2026-11-01T07:41:00Z",
+      "duration_s": 231,
+      "status": "success",
+      "notes": "Turns on the checkout_tax_v2 rounding path for all regions."
+    },
+    {
+      "id": "d-1048",
+      "service": "notifications",
+      "commit": "0d44ba1",
+      "author": "tove@example.com",
+      "started_at": "2026-11-01T06:35:00Z",
+      "duration_s": 150,
+      "status": "success",
+      "notes": "Retry backoff tuning."
+    },
+    {
+      "id": "d-1047",
+      "service": "checkout",
+      "commit": "9fa6c30",
+      "author": "tove@example.com",
+      "started_at": "2026-11-01T06:10:00Z",
+      "duration_s": 198,
+      "status": "success",
+      "notes": "Copy tweaks on the payment step."
+    },
+    {
+      "id": "d-1046",
+      "service": "billing",
+      "commit": "b2187ef",
+      "author": "dan@example.com",
+      "started_at": "2026-10-31T13:00:00Z",
+      "duration_s": 176,
+      "status": "success",
+      "notes": "Dunning email schedule."
+    },
+    {
+      "id": "d-1044",
+      "service": "checkout",
+      "commit": "5c3d0a8",
+      "author": "priya@example.com",
+      "started_at": "2026-10-31T16:20:00Z",
+      "duration_s": 205,
+      "status": "success",
+      "notes": "Address autocomplete behind a flag."
+    },
+    {
+      "id": "d-1042",
+      "service": "notifications",
+      "commit": "e81fa44",
+      "author": "tove@example.com",
+      "started_at": "2026-10-31T09:10:00Z",
+      "duration_s": 141,
+      "status": "success",
+      "notes": "Template cleanup."
+    },
+    {
+      "id": "d-1041",
+      "service": "checkout",
+      "commit": "77bc914",
+      "author": "dan@example.com",
+      "started_at": "2026-10-31T11:05:00Z",
+      "duration_s": 220,
+      "status": "success",
+      "notes": "Dependency bumps."
+    },
+    {
+      "id": "d-1040",
+      "service": "billing",
+      "commit": "3ae5d62",
+      "author": "dan@example.com",
+      "started_at": "2026-10-30T10:20:00Z",
+      "duration_s": 168,
+      "status": "success",
+      "notes": "VAT rate table refresh."
+    },
+    {
+      "id": "d-1038",
+      "service": "checkout",
+      "commit": "a0592fd",
+      "author": "tove@example.com",
+      "started_at": "2026-10-30T15:30:00Z",
+      "duration_s": 12,
+      "status": "failed",
+      "notes": "Cancelled by the operator 12s in. Nothing reached production."
+    },
+    {
+      "id": "d-1035",
+      "service": "checkout",
+      "commit": "6b7e188",
+      "author": "priya@example.com",
+      "started_at": "2026-10-30T09:12:00Z",
+      "duration_s": 212,
+      "status": "success",
+      "notes": "Cart badge counter."
+    },
+    {
+      "id": "d-1031",
+      "service": "checkout",
+      "commit": "d14c7b0",
+      "author": "dan@example.com",
+      "started_at": "2026-10-29T14:45:00Z",
+      "duration_s": 194,
+      "status": "success",
+      "notes": "Logging cleanup."
+    }
+  ],
+  "health": {
+    "checkout": [
+      { "hour": "2026-11-01T04:00:00Z", "error_rate_pct": 0.2, "p99_ms": 240, "requests": 8120 },
+      { "hour": "2026-11-01T05:00:00Z", "error_rate_pct": 0.2, "p99_ms": 251, "requests": 9050 },
+      { "hour": "2026-11-01T06:00:00Z", "error_rate_pct": 0.3, "p99_ms": 262, "requests": 10430 },
+      { "hour": "2026-11-01T07:00:00Z", "error_rate_pct": 0.2, "p99_ms": 248, "requests": 11890 },
+      { "hour": "2026-11-01T08:00:00Z", "error_rate_pct": 4.1, "p99_ms": 1105, "requests": 12640 },
+      { "hour": "2026-11-01T09:00:00Z", "error_rate_pct": 4.6, "p99_ms": 1182, "requests": 13010 },
+      { "hour": "2026-11-01T10:00:00Z", "error_rate_pct": 4.4, "p99_ms": 1143, "requests": 6720 }
+    ],
+    "billing": [
+      { "hour": "2026-11-01T04:00:00Z", "error_rate_pct": 0.1, "p99_ms": 410, "requests": 1120 },
+      { "hour": "2026-11-01T05:00:00Z", "error_rate_pct": 0.1, "p99_ms": 402, "requests": 1180 },
+      { "hour": "2026-11-01T06:00:00Z", "error_rate_pct": 0.1, "p99_ms": 418, "requests": 1240 },
+      { "hour": "2026-11-01T07:00:00Z", "error_rate_pct": 0.2, "p99_ms": 431, "requests": 1290 },
+      { "hour": "2026-11-01T08:00:00Z", "error_rate_pct": 0.1, "p99_ms": 425, "requests": 1330 },
+      { "hour": "2026-11-01T09:00:00Z", "error_rate_pct": 0.1, "p99_ms": 419, "requests": 1360 },
+      { "hour": "2026-11-01T10:00:00Z", "error_rate_pct": 0.1, "p99_ms": 422, "requests": 690 }
+    ],
+    "notifications": [
+      { "hour": "2026-11-01T04:00:00Z", "error_rate_pct": 0.4, "p99_ms": 180, "requests": 4300 },
+      { "hour": "2026-11-01T05:00:00Z", "error_rate_pct": 0.5, "p99_ms": 177, "requests": 4410 },
+      { "hour": "2026-11-01T06:00:00Z", "error_rate_pct": 0.4, "p99_ms": 190, "requests": 4520 },
+      { "hour": "2026-11-01T07:00:00Z", "error_rate_pct": 0.4, "p99_ms": 185, "requests": 4680 },
+      { "hour": "2026-11-01T08:00:00Z", "error_rate_pct": 0.5, "p99_ms": 188, "requests": 4710 },
+      { "hour": "2026-11-01T09:00:00Z", "error_rate_pct": 0.4, "p99_ms": 183, "requests": 4790 },
+      { "hour": "2026-11-01T10:00:00Z", "error_rate_pct": 0.4, "p99_ms": 186, "requests": 2410 }
+    ]
+  }
+}

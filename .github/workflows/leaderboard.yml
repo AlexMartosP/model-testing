@@ -1,0 +1,22 @@
+# Rebuilds the README leaderboard and results/*.csv whenever scores change.
+name: leaderboard
+on:
+  push:
+    paths: ["runs/**", "tasks/index.csv", "harnesses/**", "scripts/**"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - run: node scripts/eval.ts summarize
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898732+github-actions[bot]@users.noreply.github.com"
+          git add README.md results/
+          git diff --cached --quiet || (git commit -m "Update leaderboard" && git push)

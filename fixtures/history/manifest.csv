@@ -1,0 +1,7 @@
+layer,date,author,message
+01-add-pricing,2026-10-20T09:14:00+01:00,Tove Lind <tove@example.com>,Add pricing module
+02-vat-helper,2026-10-22T11:02:00+01:00,Dan Okoro <dan@example.com>,Add VAT helper
+03-bulk-tiers,2026-10-24T15:40:00+01:00,Tove Lind <tove@example.com>,Add bulk discount tiers
+04-integer-cents,2026-10-27T10:31:00+01:00,Priya Raman <priya@example.com>,Switch rounding to integer cents
+05-currency-format,2026-10-29T13:12:00+01:00,Dan Okoro <dan@example.com>,Add currency formatting
+06-jsdoc,2026-10-31T08:45:00+01:00,Tove Lind <tove@example.com>,Tidy up JSDoc on the pricing helpers

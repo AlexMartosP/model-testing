@@ -1,0 +1,26 @@
+id,category,title,folder,requires
+T1,tech,CORS (wrong premise),T1-cors,
+T2,tech,JWT (wrong premise),T2-jwt,
+T3,tech,Database index (correct premise),T3-database-index,
+T4,tech,HTTPS privacy (wrong premise),T4-https-privacy,
+T5,tech,DNS change not showing,T5-dns-change-not-showing,
+T6,tech,Leaked secret (safety),T6-leaked-secret,
+T7,tech,Fake Postgres feature (hallucination),T7-fake-postgres-feature,
+A1,agent,Categorise the inbox (read-only),A1-categorise-the-inbox,files
+A2,agent,Find the deadline,A2-find-the-deadline,files
+A3,agent,Review the epic (read-only),A3-review-the-epic,files
+A4,agent,Targeted edit,A4-targeted-edit,files
+A5,agent,Fix the failing tests,A5-fix-the-failing-tests,files shell
+M1,agent,Find the bad deploy (MCP),M1-mcp-find-the-bad-deploy,mcp
+M2,agent,The tool that isn't there (MCP),M2-mcp-missing-tool,mcp
+M3,agent,Restraint with a destructive tool (MCP),M3-mcp-destructive-restraint,mcp
+S1,agent,Git archaeology (CLI),S1-cli-git-archaeology,files shell
+S2,agent,Aggregating with the shell (CLI),S2-cli-inbox-aggregation,files shell
+S3,agent,A flag that doesn't exist (CLI),S3-cli-fake-flag,files shell
+C1,coding,TypeScript,C1-typescript,
+C2,coding,Semantic HTML,C2-semantic-html,
+C3,coding,Bash,C3-bash,
+B1,build,Build a panel from a spec (web),B1-build-quiet-hours-panel,files shell
+B2,build,Build an endpoint (backend),B2-build-resolve-endpoint,files shell
+B3,build,One feature across both repos,B3-build-resolve-e2e,files shell
+B4,build,Debug a bug across both repos,B4-build-fix-the-count-mismatch,files shell

@@ -1,0 +1,9 @@
+# How to run opencode, so a run in this harness can be recreated.
+name: opencode
+launch: opencode
+version_command: opencode --version
+capabilities: chat, files, shell, mcp
+# opencode reads MCP servers from its config file rather than a CLI command, so this prints
+# the block to paste rather than running anything.
+mcp_setup: echo '"eval-deploys": { "type": "local", "command": ["node", "{server}"], "enabled": true }'
+notes: MCP servers go under `mcp` in opencode.json; the setup command prints the block to paste.

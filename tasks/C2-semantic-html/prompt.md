@@ -1,0 +1,1 @@
+Write semantic HTML (no CSS) for a landing-page hero: a small eyebrow label "ACME LIVING" above the main headline "Healthy homes, happy residents", a one-line subline, and two links styled as buttons: "Book a demo" and "Learn more". The eyebrow must not be the H1.
