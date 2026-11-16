@@ -126,6 +126,23 @@ export function install(): void {
   console.log(`\nInstalled ${projects.join(", ")}. These are gitignored, so they stay out of the saved diff.`);
 }
 
+/**
+ * The saved-diff format: porcelain status, then the patch.
+ *
+ * Exported because `go`'s guard has to rebuild this byte-for-byte to decide whether what's in the
+ * sandbox is already on disk. Two copies of this formatting drifted apart once already (one
+ * trimmed, one didn't), so there is deliberately only one.
+ */
+export function buildWorkspaceDiff(ws: string): string {
+  git(["add", "-A", "-N", "."], ws); // -N so new files show up in the diff
+  return [
+    "## git status --porcelain",
+    git(["status", "--porcelain"], ws),
+    "## git diff",
+    git(["diff"], ws),
+  ].join("\n");
+}
+
 export function save(args: string[]): void {
   const [runDir, taskId] = args;
   if (args.length !== 2) throw new Error("usage: workspace save <run-dir> <task-id>");
@@ -137,14 +154,8 @@ export function save(args: string[]): void {
   const out = resolve(runDir);
   mkdirSync(out, { recursive: true });
 
-  git(["add", "-A", "-N", "."], ws); // -N so new files show up in the diff
   const diffPath = join(out, `${taskId}.diff`);
-  writeFileSync(diffPath, [
-    "## git status --porcelain",
-    git(["status", "--porcelain"], ws),
-    "## git diff",
-    git(["diff"], ws),
-  ].join("\n"));
+  writeFileSync(diffPath, buildWorkspaceDiff(ws));
   console.log(`Saved ${diffPath}`);
 
   const log = mcpLogPath();

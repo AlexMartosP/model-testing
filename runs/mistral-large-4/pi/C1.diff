@@ -1,0 +1,30 @@
+## git status --porcelain
+ A contactsToSuppress.ts
+
+## git diff
+diff --git a/contactsToSuppress.ts b/contactsToSuppress.ts
+new file mode 100644
+index 0000000..eb0cbba
+--- /dev/null
++++ b/contactsToSuppress.ts
+@@ -0,0 +1,20 @@
++export type Contact = {
++  email: string;
++  unsubscribed?: boolean;
++  hardBounced?: boolean;
++};
++
++export function contactsToSuppress(contacts: Contact[]): string[] {
++  const emails = new Set<string>();
++
++  for (const contact of contacts) {
++    if (!contact.unsubscribed && !contact.hardBounced) continue;
++
++    const email = contact.email.trim().toLowerCase();
++    if (email.length > 0) {
++      emails.add(email);
++    }
++  }
++
++  return [...emails].sort();
++}

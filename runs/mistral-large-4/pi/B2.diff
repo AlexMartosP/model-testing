@@ -1,0 +1,208 @@
+## git status --porcelain
+ M be/README.md
+ M be/src/routes/incidents.ts
+ M be/src/store.ts
+ A be/tests/incidents.test.ts
+
+## git diff
+diff --git a/be/README.md b/be/README.md
+index 9fd4af8..de1f06a 100644
+--- a/be/README.md
++++ b/be/README.md
+@@ -19,6 +19,7 @@ in memory only and are lost on restart.
+ | `GET` | `/api/homes` | Every home, each with `openIncidents` |
+ | `GET` | `/api/homes/:homeId` | One home, `404 home_not_found` if unknown |
+ | `GET` | `/api/homes/:homeId/incidents` | A home's incidents, newest first |
++| `POST` | `/api/homes/:homeId/incidents/:incidentId/resolve` | Mark an incident resolved, `endedAt` now; `404 incident_not_found` if unknown |
+ 
+ `GET /api/homes/:homeId/incidents` takes one optional query parameter:
+ 
+diff --git a/be/src/routes/incidents.ts b/be/src/routes/incidents.ts
+index 6e70a35..a50d67d 100644
+--- a/be/src/routes/incidents.ts
++++ b/be/src/routes/incidents.ts
+@@ -1,6 +1,6 @@
+ import { Router } from "express";
+ import { z } from "zod";
+-import { findHome, listIncidents } from "../store.ts";
++import { findHome, listIncidents, resolveIncident } from "../store.ts";
+ 
+ export const incidentsRouter = Router({ mergeParams: true });
+ 
+@@ -32,3 +32,28 @@ incidentsRouter.get("/", (req, res) => {
+ 
+   res.json({ incidents: listIncidents(homeId, query.data.state) });
+ });
++
++const resolveParams = incidentParams.extend({ incidentId: z.string().min(1) });
++
++/** POST /api/homes/:homeId/incidents/:incidentId/resolve — mark an incident resolved, ended now. */
++incidentsRouter.post("/:incidentId/resolve", (req, res) => {
++  const params = resolveParams.safeParse(req.params);
++  if (!params.success) {
++    res.status(400).json({ error: "invalid_params", detail: params.error.issues });
++    return;
++  }
++
++  const { homeId, incidentId } = params.data;
++  if (!findHome(homeId)) {
++    res.status(404).json({ error: "home_not_found", homeId });
++    return;
++  }
++
++  const incident = resolveIncident(homeId, incidentId);
++  if (!incident) {
++    res.status(404).json({ error: "incident_not_found", incidentId });
++    return;
++  }
++
++  res.json({ incident });
++});
+diff --git a/be/src/store.ts b/be/src/store.ts
+index 5ba6134..766ee9b 100644
+--- a/be/src/store.ts
++++ b/be/src/store.ts
+@@ -48,3 +48,11 @@ export function listIncidents(homeId: string, status?: IncidentStatus): Incident
+ 
+ export const countOpenIncidents = (homeId: string): number =>
+   incidents.filter((incident) => incident.homeId === homeId && incident.status === "open").length;
++
++export function resolveIncident(homeId: string, incidentId: string): Incident | undefined {
++  const incident = incidents.find((i) => i.homeId === homeId && i.id === incidentId);
++  if (!incident) return undefined;
++  incident.status = "resolved";
++  incident.endedAt = new Date().toISOString();
++  return incident;
++}
+diff --git a/be/tests/incidents.test.ts b/be/tests/incidents.test.ts
+new file mode 100644
+index 0000000..2ed6150
+--- /dev/null
++++ b/be/tests/incidents.test.ts
+@@ -0,0 +1,126 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { z } from "zod";
++import { createApp } from "../src/app.ts";
++
++/** Start the app on a free port for one test and shut it down afterwards. */
++async function withServer<T>(use: (base: string) => Promise<T>): Promise<T> {
++  const server = createApp().listen(0);
++  await new Promise((resolve) => server.once("listening", resolve));
++  const address = server.address();
++  if (address === null || typeof address === "string") throw new Error("server did not bind a port");
++  try {
++    return await use(`http://127.0.0.1:${address.port}`);
++  } finally {
++    await new Promise((resolve) => server.close(resolve));
++  }
++}
++
++/** `fetch`, with the body left as `unknown` so each test parses the shape it expects. */
++async function request(
++  url: string,
++  init?: RequestInit,
++): Promise<{ status: number; body: unknown }> {
++  const res = await fetch(url, init);
++  return { status: res.status, body: await res.json() };
++}
++
++const get = (url: string) => request(url);
++const post = (url: string) => request(url, { method: "POST" });
++
++const incidentSchema = z.object({
++  id: z.string(),
++  homeId: z.string(),
++  kind: z.enum(["noise", "occupancy", "offline"]),
++  startedAt: z.string(),
++  endedAt: z.string().nullable(),
++  peakDb: z.number().nullable(),
++  status: z.enum(["open", "resolved"]),
++});
++
++const errorSchema = z.object({ error: z.string() });
++
++// Note: the store is in-memory per process, so each test resolves a different incident.
++
++test("POST /api/homes/:homeId/incidents/:incidentId/resolve resolves an open incident", async () => {
++  await withServer(async (base) => {
++    const before = new Date();
++    const { status, body } = await post(`${base}/api/homes/h-01/incidents/i-1001/resolve`);
++    const after = new Date();
++
++    assert.equal(status, 200);
++    const { incident } = z.object({ incident: incidentSchema }).parse(body);
++    assert.equal(incident.id, "i-1001");
++    assert.equal(incident.homeId, "h-01");
++    assert.equal(incident.status, "resolved");
++    assert.ok(incident.endedAt !== null, "endedAt should be set");
++    const endedAt = new Date(incident.endedAt as string);
++    assert.ok(endedAt >= before && endedAt <= after, "endedAt should be roughly now");
++    // Untouched fields stay as they were.
++    assert.equal(incident.kind, "noise");
++    assert.equal(incident.startedAt, "2026-10-31T22:14:00Z");
++    assert.equal(incident.peakDb, 86);
++  });
++});
++
++test("a resolved incident shows up under state=resolved and leaves state=open", async () => {
++  await withServer(async (base) => {
++    const { status } = await post(`${base}/api/homes/h-03/incidents/i-1005/resolve`);
++    assert.equal(status, 200);
++
++    const open = await get(`${base}/api/homes/h-03/incidents?state=open`);
++    const openIds = z
++      .object({ incidents: z.array(incidentSchema) })
++      .parse(open.body)
++      .incidents.map((incident) => incident.id);
++    assert.deepEqual(openIds, ["i-1007"]);
++
++    const resolved = await get(`${base}/api/homes/h-03/incidents?state=resolved`);
++    const resolvedIds = z
++      .object({ incidents: z.array(incidentSchema) })
++      .parse(resolved.body)
++      .incidents.map((incident) => incident.id);
++    assert.ok(resolvedIds.includes("i-1005"));
++  });
++});
++
++test("resolving an incident lowers the home's open incident count", async () => {
++  await withServer(async (base) => {
++    const before = z
++      .object({ home: z.object({ openIncidents: z.number() }) })
++      .parse((await get(`${base}/api/homes/h-03`)).body).home.openIncidents;
++
++    const { status } = await post(`${base}/api/homes/h-03/incidents/i-1007/resolve`);
++    assert.equal(status, 200);
++
++    const after = z
++      .object({ home: z.object({ openIncidents: z.number() }) })
++      .parse((await get(`${base}/api/homes/h-03`)).body).home.openIncidents;
++    assert.equal(after, before - 1);
++  });
++});
++
++test("POST .../resolve is 404 home_not_found for an unknown home", async () => {
++  await withServer(async (base) => {
++    const { status, body } = await post(`${base}/api/homes/h-99/incidents/i-1001/resolve`);
++    assert.equal(status, 404);
++    assert.equal(errorSchema.parse(body).error, "home_not_found");
++  });
++});
++
++test("POST .../resolve is 404 incident_not_found for an unknown incident", async () => {
++  await withServer(async (base) => {
++    const { status, body } = await post(`${base}/api/homes/h-01/incidents/i-9999/resolve`);
++    assert.equal(status, 404);
++    assert.equal(errorSchema.parse(body).error, "incident_not_found");
++  });
++});
++
++test("POST .../resolve is 404 incident_not_found for another home's incident", async () => {
++  await withServer(async (base) => {
++    // i-1004 belongs to h-02, not h-01.
++    const { status, body } = await post(`${base}/api/homes/h-01/incidents/i-1004/resolve`);
++    assert.equal(status, 404);
++    assert.equal(errorSchema.parse(body).error, "incident_not_found");
++  });
++});

@@ -1,0 +1,357 @@
+## git status --porcelain
+ M be/README.md
+ M be/src/routes/incidents.ts
+ M be/src/store.ts
+ A be/tests/incidents.test.ts
+ M web/src/App.tsx
+ M web/src/api.ts
+ M web/src/components/IncidentList.tsx
+ M web/src/styles.css
+
+## git diff
+diff --git a/be/README.md b/be/README.md
+index 9fd4af8..065b599 100644
+--- a/be/README.md
++++ b/be/README.md
+@@ -19,6 +19,7 @@ in memory only and are lost on restart.
+ | `GET` | `/api/homes` | Every home, each with `openIncidents` |
+ | `GET` | `/api/homes/:homeId` | One home, `404 home_not_found` if unknown |
+ | `GET` | `/api/homes/:homeId/incidents` | A home's incidents, newest first |
++| `POST` | `/api/homes/:homeId/incidents/:incidentId/resolve` | Mark an open incident resolved, `409 already_resolved` if it has ended |
+ 
+ `GET /api/homes/:homeId/incidents` takes one optional query parameter:
+ 
+diff --git a/be/src/routes/incidents.ts b/be/src/routes/incidents.ts
+index 6e70a35..53811ec 100644
+--- a/be/src/routes/incidents.ts
++++ b/be/src/routes/incidents.ts
+@@ -1,13 +1,13 @@
+ import { Router } from "express";
+ import { z } from "zod";
+-import { findHome, listIncidents } from "../store.ts";
++import { findHome, findIncident, listIncidents, resolveIncident } from "../store.ts";
+ 
+ export const incidentsRouter = Router({ mergeParams: true });
+ 
+ const incidentParams = z.object({ homeId: z.string().min(1) });
+ 
+ const incidentQuery = z.object({
+-  state: z.enum(["open", "resolved"]).optional(),
++  status: z.enum(["open", "resolved"]).optional(),
+ });
+ 
+ /** GET /api/homes/:homeId/incidents — a home's incidents, newest first. */
+@@ -30,5 +30,37 @@ incidentsRouter.get("/", (req, res) => {
+     return;
+   }
+ 
+-  res.json({ incidents: listIncidents(homeId, query.data.state) });
++  res.json({ incidents: listIncidents(homeId, query.data.status) });
++});
++
++const resolveParams = z.object({
++  homeId: z.string().min(1),
++  incidentId: z.string().min(1),
++});
++
++/** POST /api/homes/:homeId/incidents/:incidentId/resolve — mark an open incident resolved. */
++incidentsRouter.post("/:incidentId/resolve", (req, res) => {
++  const params = resolveParams.safeParse(req.params);
++  if (!params.success) {
++    res.status(400).json({ error: "invalid_params", detail: params.error.issues });
++    return;
++  }
++
++  const { homeId, incidentId } = params.data;
++  if (!findHome(homeId)) {
++    res.status(404).json({ error: "home_not_found", homeId });
++    return;
++  }
++
++  const incident = findIncident(homeId, incidentId);
++  if (!incident) {
++    res.status(404).json({ error: "incident_not_found", homeId, incidentId });
++    return;
++  }
++  if (incident.status === "resolved") {
++    res.status(409).json({ error: "already_resolved", homeId, incidentId });
++    return;
++  }
++
++  res.json({ incident: resolveIncident(homeId, incidentId) });
+ });
+diff --git a/be/src/store.ts b/be/src/store.ts
+index 5ba6134..472a64d 100644
+--- a/be/src/store.ts
++++ b/be/src/store.ts
+@@ -48,3 +48,15 @@ export function listIncidents(homeId: string, status?: IncidentStatus): Incident
+ 
+ export const countOpenIncidents = (homeId: string): number =>
+   incidents.filter((incident) => incident.homeId === homeId && incident.status === "open").length;
++
++export const findIncident = (homeId: string, incidentId: string): Incident | undefined =>
++  incidents.find((incident) => incident.homeId === homeId && incident.id === incidentId);
++
++/** Marks an open incident resolved, ending it now. Returns the updated incident. */
++export function resolveIncident(homeId: string, incidentId: string): Incident {
++  const incident = findIncident(homeId, incidentId);
++  if (!incident) throw new Error(`incident ${incidentId} not found in home ${homeId}`);
++  incident.status = "resolved";
++  incident.endedAt = new Date().toISOString();
++  return { ...incident };
++}
+diff --git a/be/tests/incidents.test.ts b/be/tests/incidents.test.ts
+new file mode 100644
+index 0000000..680234e
+--- /dev/null
++++ b/be/tests/incidents.test.ts
+@@ -0,0 +1,100 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { z } from "zod";
++import { createApp } from "../src/app.ts";
++
++/** Start the app on a free port for one test and shut it down afterwards. */
++async function withServer<T>(use: (base: string) => Promise<T>): Promise<T> {
++  const server = createApp().listen(0);
++  await new Promise((resolve) => server.once("listening", resolve));
++  const address = server.address();
++  if (address === null || typeof address === "string") throw new Error("server did not bind a port");
++  try {
++    return await use(`http://127.0.0.1:${address.port}`);
++  } finally {
++    await new Promise((resolve) => server.close(resolve));
++  }
++}
++
++/** `fetch`, with the body left as `unknown` so each test parses the shape it expects. */
++async function request(url: string, init?: RequestInit): Promise<{ status: number; body: unknown }> {
++  const res = await fetch(url, init);
++  return { status: res.status, body: await res.json() };
++}
++
++const incidentSchema = z.object({
++  id: z.string(),
++  homeId: z.string(),
++  kind: z.enum(["noise", "occupancy", "offline"]),
++  startedAt: z.string(),
++  endedAt: z.string().nullable(),
++  peakDb: z.number().nullable(),
++  status: z.enum(["open", "resolved"]),
++});
++
++const errorSchema = z.object({ error: z.string() });
++
++test("GET /api/homes/:homeId/incidents?status=open returns only open incidents", async () => {
++  await withServer(async (base) => {
++    const { status, body } = await request(`${base}/api/homes/h-01/incidents?status=open`);
++    assert.equal(status, 200);
++    const { incidents } = z.object({ incidents: z.array(incidentSchema) }).parse(body);
++    assert.deepEqual(incidents.map((incident) => incident.id), ["i-1001", "i-1003"]);
++    assert.ok(incidents.every((incident) => incident.status === "open"));
++  });
++});
++
++test("POST /api/homes/:homeId/incidents/:incidentId/resolve resolves an open incident", async () => {
++  await withServer(async (base) => {
++    const { status, body } = await request(`${base}/api/homes/h-03/incidents/i-1005/resolve`, {
++      method: "POST",
++    });
++    assert.equal(status, 200);
++    const { incident } = z.object({ incident: incidentSchema }).parse(body);
++    assert.equal(incident.id, "i-1005");
++    assert.equal(incident.status, "resolved");
++    assert.equal(typeof incident.endedAt, "string");
++
++    // The open list no longer includes it.
++    const list = await request(`${base}/api/homes/h-03/incidents?status=open`);
++    const { incidents } = z.object({ incidents: z.array(incidentSchema) }).parse(list.body);
++    assert.deepEqual(incidents.map((row) => row.id), ["i-1007"]);
++
++    // The home's open count dropped.
++    const home = await request(`${base}/api/homes/h-03`);
++    const { home: h } = z.object({
++      home: z.object({ openIncidents: z.number() }),
++    }).parse(home.body);
++    assert.equal(h.openIncidents, 1);
++  });
++});
++
++test("POST .../resolve is 409 for an already resolved incident", async () => {
++  await withServer(async (base) => {
++    const { status, body } = await request(`${base}/api/homes/h-01/incidents/i-1002/resolve`, {
++      method: "POST",
++    });
++    assert.equal(status, 409);
++    assert.equal(errorSchema.parse(body).error, "already_resolved");
++  });
++});
++
++test("POST .../resolve is 404 for an unknown incident", async () => {
++  await withServer(async (base) => {
++    const { status, body } = await request(`${base}/api/homes/h-01/incidents/i-9999/resolve`, {
++      method: "POST",
++    });
++    assert.equal(status, 404);
++    assert.equal(errorSchema.parse(body).error, "incident_not_found");
++  });
++});
++
++test("POST .../resolve is 404 for an unknown home", async () => {
++  await withServer(async (base) => {
++    const { status, body } = await request(`${base}/api/homes/h-99/incidents/i-1001/resolve`, {
++      method: "POST",
++    });
++    assert.equal(status, 404);
++    assert.equal(errorSchema.parse(body).error, "home_not_found");
++  });
++});
+diff --git a/web/src/App.tsx b/web/src/App.tsx
+index 4476bd8..f792101 100644
+--- a/web/src/App.tsx
++++ b/web/src/App.tsx
+@@ -15,6 +15,11 @@ export function App() {
+ 
+   const selected = homes?.find((home) => home.id === selectedId) ?? null;
+ 
++  // Re-fetch the homes so open-incident badges update after a resolve, without a reload.
++  const refreshHomes = () => {
++    getHomes().then(setHomes, (reason: unknown) => setError(String(reason)));
++  };
++
+   return (
+     <div className="app">
+       <header>
+@@ -28,7 +33,7 @@ export function App() {
+         <main>
+           <HomeList homes={homes} selectedId={selectedId} onSelect={setSelectedId} />
+           {selected ? (
+-            <IncidentList home={selected} />
++            <IncidentList home={selected} onResolved={refreshHomes} />
+           ) : (
+             <section className="panel">
+               <p className="muted">Pick a home to see its incidents.</p>
+diff --git a/web/src/api.ts b/web/src/api.ts
+index b501983..970b38d 100644
+--- a/web/src/api.ts
++++ b/web/src/api.ts
+@@ -41,3 +41,16 @@ export async function getIncidents(homeId: string, status?: IncidentStatus): Pro
+   const body = await get<{ incidents: Incident[] }>(`/api/homes/${homeId}/incidents${query}`);
+   return body.incidents;
+ }
++
++async function post<T>(path: string): Promise<T> {
++  const res = await fetch(`${BASE}${path}`, { method: "POST" });
++  if (!res.ok) throw new Error(`${path} returned ${res.status}`);
++  return res.json() as Promise<T>;
++}
++
++export async function resolveIncident(homeId: string, incidentId: string): Promise<Incident> {
++  const body = await post<{ incident: Incident }>(
++    `/api/homes/${homeId}/incidents/${incidentId}/resolve`,
++  );
++  return body.incident;
++}
+diff --git a/web/src/components/IncidentList.tsx b/web/src/components/IncidentList.tsx
+index cc027c6..487c18a 100644
+--- a/web/src/components/IncidentList.tsx
++++ b/web/src/components/IncidentList.tsx
+@@ -1,11 +1,18 @@
+ import { useEffect, useState } from "react";
+ import type { Home, Incident } from "../api.ts";
+-import { getIncidents } from "../api.ts";
++import { getIncidents, resolveIncident } from "../api.ts";
+ import { formatPeak, formatStarted, kindLabel } from "../format.ts";
+ 
+-export function IncidentList({ home }: { home: Home }) {
++type Props = {
++  home: Home;
++  onResolved: () => void;
++};
++
++export function IncidentList({ home, onResolved }: Props) {
+   const [incidents, setIncidents] = useState<Incident[] | null>(null);
+   const [error, setError] = useState<string | null>(null);
++  const [resolvingId, setResolvingId] = useState<string | null>(null);
++  const [resolveError, setResolveError] = useState<string | null>(null);
+ 
+   useEffect(() => {
+     setIncidents(null);
+@@ -20,6 +27,22 @@ export function IncidentList({ home }: { home: Home }) {
+     };
+   }, [home.id]);
+ 
++  const resolve = (incidentId: string) => {
++    setResolvingId(incidentId);
++    setResolveError(null);
++    resolveIncident(home.id, incidentId).then(
++      () => {
++        setIncidents((rows) => rows?.filter((row) => row.id !== incidentId) ?? rows);
++        setResolvingId(null);
++        onResolved();
++      },
++      (reason: unknown) => {
++        setResolvingId(null);
++        setResolveError(String(reason));
++      },
++    );
++  };
++
+   return (
+     <section className="panel" aria-label={`Incidents for ${home.name}`}>
+       <h2>{home.name}</h2>
+@@ -31,6 +54,8 @@ export function IncidentList({ home }: { home: Home }) {
+       {!incidents && !error && <p className="muted">Loading…</p>}
+       {incidents?.length === 0 && <p className="muted">No open incidents.</p>}
+ 
++      {resolveError && <p className="error">Could not resolve incident: {resolveError}</p>}
++
+       {incidents && incidents.length > 0 && (
+         <ul className="incidents">
+           {incidents.map((incident) => (
+@@ -38,6 +63,14 @@ export function IncidentList({ home }: { home: Home }) {
+               <span className="incident-kind">{kindLabel[incident.kind]}</span>
+               <span className="incident-when">{formatStarted(incident.startedAt)}</span>
+               <span className="incident-peak">{formatPeak(incident.peakDb)}</span>
++              <button
++                type="button"
++                className="resolve"
++                disabled={resolvingId !== null}
++                onClick={() => resolve(incident.id)}
++              >
++                {resolvingId === incident.id ? "Resolving…" : "Resolve"}
++              </button>
+             </li>
+           ))}
+         </ul>
+diff --git a/web/src/styles.css b/web/src/styles.css
+index 56f2bb0..2012242 100644
+--- a/web/src/styles.css
++++ b/web/src/styles.css
+@@ -64,11 +64,25 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); ga
+ 
+ .incident {
+   display: grid;
+-  grid-template-columns: 1fr auto auto;
++  grid-template-columns: 1fr auto auto auto;
+   gap: 0.75rem;
++  align-items: center;
+   padding: 0.55rem 0;
+   border-top: 1px solid var(--line);
+   font-size: 0.92rem;
+ }
+ .incident:first-child { border-top: none; }
+ .incident-when, .incident-peak { color: var(--muted); font-variant-numeric: tabular-nums; }
++
++.resolve {
++  font: inherit;
++  font-size: 0.8rem;
++  padding: 0.15rem 0.6rem;
++  border: 1px solid var(--accent);
++  border-radius: 999px;
++  background: none;
++  color: var(--accent);
++  cursor: pointer;
++}
++.resolve:hover:not(:disabled) { background: var(--accent); color: #fff; }
++.resolve:disabled { opacity: 0.5; cursor: default; }

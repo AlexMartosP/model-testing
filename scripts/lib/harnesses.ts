@@ -26,6 +26,9 @@ export type Harness = {
   file: string;
 };
 
+/** Stand-in for the model under test inside a `launch` command, filled from the run's model_ref. */
+export const MODEL_PLACEHOLDER = "{model}";
+
 const dir = () => inRoot("harnesses");
 
 export function loadHarnesses(): Harness[] {
@@ -71,7 +74,9 @@ export function requireHarness(name: string): Harness {
 
 export const harnessTemplate = (name: string) => `# How to run ${name}, so a run in this harness can be recreated.
 name: ${name}
-launch: ${name}                 # command that starts it; cwd is the eval workspace
+# Command that starts it; cwd is the eval workspace. Include ${MODEL_PLACEHOLDER} and it is filled
+# from the run's model_ref, so the harness's own default model can never decide what you test.
+launch: ${name} --model ${MODEL_PLACEHOLDER}
 version_command: ${name} --version
 # What it can do. Tasks needing a capability it lacks are scored n/a, not 0.
 # ${CAPABILITIES.map((c) => `${c}: ${CAPABILITY_HELP[c]}`).join("\n# ")}

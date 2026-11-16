@@ -3,15 +3,17 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { missingCapabilities } from "../lib/capabilities.ts";
 import { toCsv } from "../lib/csv.ts";
-import { requireHarness } from "../lib/harnesses.ts";
+import { MODEL_PLACEHOLDER, requireHarness } from "../lib/harnesses.ts";
 import { inRoot } from "../lib/paths.ts";
 import { capture } from "../lib/proc.ts";
 import { NA } from "../lib/scores.ts";
 import { loadTasks } from "../lib/tasks.ts";
 
 export function newRun(args: string[]): void {
-  const [model, harnessName] = args;
-  if (args.length !== 2) throw new Error("usage: new-run <model-folder-name> <harness>");
+  const [model, harnessName, modelRef] = args;
+  if (args.length < 2 || args.length > 3) {
+    throw new Error("usage: new-run <model-folder-name> <harness> [model-ref]");
+  }
 
   const harness = requireHarness(harnessName);
   const dir = inRoot("runs", model, harness.name);
@@ -34,6 +36,7 @@ export function newRun(args: string[]): void {
 
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "meta.yaml"), `model: ${model}
+model_ref: ${modelRef ?? ""}${modelRef ? "" : "                  # the id the harness is launched with, e.g. mistral/mistral-large-4-0"}
 quant:                          # Q4_K_M, Q8_0, FP16...
 harness: ${harness.name}
 harness_version: ${safeVersion}
@@ -66,6 +69,15 @@ notes:
     );
     for (const { task, missing } of skipped) console.log(`  ${task.id}  ${task.title}  (needs ${missing.join(", ")})`);
   }
-  console.log(`\nNext: node scripts/eval.ts workspace reset && node scripts/eval.ts start ${harness.name}`);
+  const pinsModel = harness.launch.includes(MODEL_PLACEHOLDER);
+  if (pinsModel && !modelRef) {
+    console.log(
+      `\n! Set model_ref in ${join(dir, "meta.yaml")} before starting.\n` +
+        `  ${harness.name} launches with ${MODEL_PLACEHOLDER}, and start refuses without it, so that\n` +
+        `  ${harness.name}'s own default model can't decide what you end up testing.`,
+    );
+  }
+  console.log(`\nNext: node scripts/eval.ts workspace reset`);
+  console.log(`      node scripts/eval.ts start ${harness.name}${pinsModel ? ` ${model}` : ""}`);
   console.log(`Save each answer as ${dir}/<task-id>.md.`);
 }

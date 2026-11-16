@@ -1,5 +1,7 @@
 # How to run aider, so a run in this harness can be recreated.
 name: aider
+# launch is NOT pinned to {model}: aider was not installed here, so its model flag is unverified.
+# Verify it (`aider --help`) and change this to `aider --model {model} ...` before trusting a run.
 launch: aider
 version_command: aider --version
 # No mcp: aider has no built-in MCP client as of 2026-11, so M1-M3 are scored n/a.

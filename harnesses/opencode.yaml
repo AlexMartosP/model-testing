@@ -1,6 +1,6 @@
 # How to run opencode, so a run in this harness can be recreated.
 name: opencode
-launch: opencode
+launch: opencode --model {model}
 version_command: opencode --version
 capabilities: chat, files, shell, mcp
 # opencode reads MCP servers from its config file rather than a CLI command, so this prints

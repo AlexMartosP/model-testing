@@ -1,0 +1,15 @@
+model: mistral-large-4
+model_ref: mistral/mistral-large-4
+quant:                          # unknown for an API run; the provider picks it and can change it
+harness: pi
+harness_version: 1.5.0
+harness_capabilities: chat, files, shell, mcp
+host: mistral api
+region: EU
+context_length: 1000000         # pi reports 1.0M context, 262.1K max output
+temperature:                    # pi default
+date: 2026-11-09
+tok_per_s: 58                   # median output rate over 12 tasks, range 36-94
+notes: "Le Chonk, open weights 2026-11-09, MoE ~1T total / ~50B active. Verified with a real call."
+notes_model_id: "Use mistral-large-4. The docs' mistral-large-4-0 fuzzy-matches pi's mistral-large-4-0-8, which the API rejects as invalid_model."
+notes_blocked: "2026-11-11: B1-B4 not run. Mistral returned server errors or no response for tool-enabled requests needing substantive reasoning. Same prompt works with --no-tools and direct to the API, so provider-side, not the model or the harness."

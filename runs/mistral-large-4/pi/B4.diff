@@ -1,0 +1,65 @@
+## git status --porcelain
+ M be/src/routes/incidents.ts
+ M be/tests/homes.test.ts
+
+## git diff
+diff --git a/be/src/routes/incidents.ts b/be/src/routes/incidents.ts
+index 6e70a35..308ccd5 100644
+--- a/be/src/routes/incidents.ts
++++ b/be/src/routes/incidents.ts
+@@ -6,8 +6,10 @@ export const incidentsRouter = Router({ mergeParams: true });
+ 
+ const incidentParams = z.object({ homeId: z.string().min(1) });
+ 
+-const incidentQuery = z.object({
+-  state: z.enum(["open", "resolved"]).optional(),
++// Strict on purpose: a misspelled or renamed query param must fail loudly (400) instead of
++// being silently dropped, which once made this endpoint ignore `?status=open` entirely.
++const incidentQuery = z.strictObject({
++  status: z.enum(["open", "resolved"]).optional(),
+ });
+ 
+ /** GET /api/homes/:homeId/incidents — a home's incidents, newest first. */
+@@ -30,5 +32,5 @@ incidentsRouter.get("/", (req, res) => {
+     return;
+   }
+ 
+-  res.json({ incidents: listIncidents(homeId, query.data.state) });
++  res.json({ incidents: listIncidents(homeId, query.data.status) });
+ });
+diff --git a/be/tests/homes.test.ts b/be/tests/homes.test.ts
+index 432819b..eefd4a1 100644
+--- a/be/tests/homes.test.ts
++++ b/be/tests/homes.test.ts
+@@ -94,3 +94,31 @@ test("GET /api/homes/:homeId/incidents is 404 for an unknown home", async () =>
+     assert.equal(errorSchema.parse(body).error, "home_not_found");
+   });
+ });
++
++test("GET /api/homes/:homeId/incidents?status=open returns only open incidents", async () => {
++  await withServer(async (base) => {
++    const { status, body } = await get(`${base}/api/homes/h-01/incidents?status=open`);
++    assert.equal(status, 200);
++    const { incidents } = z.object({ incidents: z.array(incidentSchema) }).parse(body);
++    assert.deepEqual(incidents.map((incident) => incident.id), ["i-1001", "i-1003"]);
++    assert.ok(incidents.every((incident) => incident.status === "open"));
++  });
++});
++
++test("GET /api/homes/:homeId/incidents?status=resolved returns only resolved incidents", async () => {
++  await withServer(async (base) => {
++    const { status, body } = await get(`${base}/api/homes/h-01/incidents?status=resolved`);
++    assert.equal(status, 200);
++    const { incidents } = z.object({ incidents: z.array(incidentSchema) }).parse(body);
++    assert.deepEqual(incidents.map((incident) => incident.id), ["i-1002"]);
++  });
++});
++
++test("GET /api/homes/:homeId/incidents rejects unknown query params instead of ignoring them", async () => {
++  await withServer(async (base) => {
++    // `state` was the old, wrong param name; it must 400, not silently return everything.
++    const { status, body } = await get(`${base}/api/homes/h-01/incidents?state=open`);
++    assert.equal(status, 400);
++    assert.equal(errorSchema.parse(body).error, "invalid_query");
++  });
++});

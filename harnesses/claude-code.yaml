@@ -1,6 +1,6 @@
 # How to run Claude Code, so a run in this harness can be recreated.
 name: claude-code
-launch: claude
+launch: claude --model {model}
 version_command: claude --version
 capabilities: chat, files, shell, mcp
 mcp_setup: claude mcp add eval-deploys --scope local -- node {server}

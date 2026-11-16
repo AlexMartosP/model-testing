@@ -21,6 +21,12 @@ export function runInteractive(command: string, cwd: string): number {
   return r.status ?? 1;
 }
 
+/** Feed `input` to a command's stdin. Used for clipboard tools, which all read stdin. */
+export function pipeTo(command: string, args: string[], input: string): boolean {
+  const r = spawnSync(command, args, { input, encoding: "utf8" });
+  return !r.error && r.status === 0;
+}
+
 /** Run git with an argv array, so fixture content can never be read as shell syntax. */
 export function git(args: string[], cwd: string, env?: Record<string, string>): string {
   const r = spawnSync("git", args, {

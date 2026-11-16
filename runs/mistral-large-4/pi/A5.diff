@@ -1,0 +1,23 @@
+## git status --porcelain
+ M calc/dilution.ts
+
+## git diff
+diff --git a/calc/dilution.ts b/calc/dilution.ts
+index 17c7ffe..68a17c6 100644
+--- a/calc/dilution.ts
++++ b/calc/dilution.ts
+@@ -2,9 +2,12 @@ export type Step = [sampleMl: number, diluentMl: number];
+ 
+ /** Total dilution factor of a serial dilution, e.g. [[0.1, 9.9]] -> 100. */
+ export function totalDilution(steps: Step[]): number {
+-  let factor = 0;
++  let factor = 1;
+   for (const [sample, diluent] of steps) {
+-    factor *= diluent / sample;
++    if (!(sample > 0) || !(diluent > 0)) {
++      throw new RangeError(`volumes must be positive, got sample=${sample}, diluent=${diluent}`);
++    }
++    factor *= (sample + diluent) / sample;
+   }
+   return factor;
+ }

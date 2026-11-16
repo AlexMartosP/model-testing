@@ -7,7 +7,11 @@
 import * as harness from "./commands/harness.ts";
 import * as mcp from "./commands/mcp.ts";
 import * as workspace from "./commands/workspace.ts";
+import { capture } from "./commands/capture.ts";
+import { go } from "./commands/go.ts";
 import { newRun } from "./commands/new-run.ts";
+import { prompt } from "./commands/prompt.ts";
+import { queue } from "./commands/queue.ts";
 import { start } from "./commands/start.ts";
 import { summarize } from "./commands/summarize.ts";
 
@@ -22,11 +26,15 @@ Setting up a harness
   mcp check                         prove the eval MCP server works before blaming a model
 
 Running a model
-  new-run <model> <harness>         create runs/<model>/<harness>/ with meta.yaml and scores.csv
+  new-run <model> <harness> [ref]   create runs/<model>/<harness>/ with meta.yaml and scores.csv
+  prompt <task-id>                  copy a task's prompt to the clipboard, verbatim
+  queue <model> [harness]           walk the ungraded tasks in order, enter for the next
+  go <harness> <model> [task|next]  reset + start in one step; 'next' picks the first ungraded task
   workspace reset                   rebuild the sandbox from fixtures/ (run before every task)
   workspace install                 npm ci the sandbox's web/ and be/ projects (build tasks only)
-  start <harness>                   launch the harness in the sandbox
+  start <harness> <model>           launch the harness in the sandbox, pinned to the run's model
   workspace save <run-dir> <task>   record the diff and the MCP calls the model made
+  capture <model> <task> [harness]  pull the answer, reasoning and transcript out of the session
 
 Scoring
   summarize                         rebuild the README leaderboard and results/*.csv
@@ -41,8 +49,16 @@ async function main(argv: string[]): Promise<void> {
   switch (command) {
     case "new-run":
       return newRun(argv.slice(1));
+    case "capture":
+      return capture(argv.slice(1));
+    case "go":
+      return go(argv.slice(1));
     case "start":
       return start(argv.slice(1));
+    case "prompt":
+      return prompt(argv.slice(1));
+    case "queue":
+      return queue(argv.slice(1));
     case "summarize":
       return summarize();
 

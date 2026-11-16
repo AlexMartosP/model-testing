@@ -1,0 +1,387 @@
+## git status --porcelain
+ M web/README.md
+ M web/src/App.tsx
+ A web/src/components/QuietHours.tsx
+ M web/src/format.ts
+ M web/src/styles.css
+ M web/tests/format.test.ts
+
+## git diff
+diff --git a/web/README.md b/web/README.md
+index bb83d76..c823a02 100644
+--- a/web/README.md
++++ b/web/README.md
+@@ -20,6 +20,7 @@ src/
+   App.tsx                 loads the homes, owns which one is selected
+   components/
+     HomeList.tsx          the left panel, with an open-incident badge per home
++    QuietHours.tsx        the selected home's last-24-hours strip, one cell per hour
+     IncidentList.tsx      the right panel, the selected home's incidents
+   styles.css              one stylesheet, CSS custom properties at the top
+ ```
+diff --git a/web/src/App.tsx b/web/src/App.tsx
+index 4476bd8..5bf9085 100644
+--- a/web/src/App.tsx
++++ b/web/src/App.tsx
+@@ -3,6 +3,7 @@ import type { Home } from "./api.ts";
+ import { getHomes } from "./api.ts";
+ import { HomeList } from "./components/HomeList.tsx";
+ import { IncidentList } from "./components/IncidentList.tsx";
++import { QuietHours } from "./components/QuietHours.tsx";
+ 
+ export function App() {
+   const [homes, setHomes] = useState<Home[] | null>(null);
+@@ -28,7 +29,10 @@ export function App() {
+         <main>
+           <HomeList homes={homes} selectedId={selectedId} onSelect={setSelectedId} />
+           {selected ? (
+-            <IncidentList home={selected} />
++            <div className="home-view">
++              <QuietHours home={selected} />
++              <IncidentList home={selected} />
++            </div>
+           ) : (
+             <section className="panel">
+               <p className="muted">Pick a home to see its incidents.</p>
+diff --git a/web/src/components/QuietHours.tsx b/web/src/components/QuietHours.tsx
+new file mode 100644
+index 0000000..3cbb5aa
+--- /dev/null
++++ b/web/src/components/QuietHours.tsx
+@@ -0,0 +1,88 @@
++import { useEffect, useMemo, useState } from "react";
++import type { Home, Incident } from "../api.ts";
++import { getIncidents } from "../api.ts";
++import { formatHour, kindLabel, last24HourCells, summarizeHours } from "../format.ts";
++import type { HourSeverity } from "../format.ts";
++
++/** A letter inside each non-quiet cell, so the meaning never depends on colour alone. */
++const severityMark: Record<HourSeverity, string> = {
++  noise: "N",
++  occupancy: "O",
++  offline: "D",
++  none: "",
++};
++
++export function QuietHours({ home }: { home: Home }) {
++  const [incidents, setIncidents] = useState<Incident[] | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  useEffect(() => {
++    setIncidents(null);
++    setError(null);
++    let current = true;
++    // All incidents, not just open ones: a resolved noise spike still coloured its hour.
++    getIncidents(home.id).then(
++      (rows) => { if (current) setIncidents(rows); },
++      (reason: unknown) => { if (current) setError(String(reason)); },
++    );
++    return () => {
++      current = false;
++    };
++  }, [home.id]);
++
++  const cells = useMemo(() => (incidents ? last24HourCells(incidents) : null), [incidents]);
++
++  return (
++    <section className="panel" aria-label={`Quiet hours for ${home.name}`}>
++      <h2>Quiet hours</h2>
++      <p className="muted">Last 24 hours, one cell per hour, oldest on the left, local time.</p>
++
++      {error && <p className="error">Could not load incidents: {error}</p>}
++      {!cells && !error && <p className="muted">Loading…</p>}
++
++      {cells && (
++        <>
++          <ol className="quiet-hours" tabIndex={0}>
++            {cells.map((cell) => {
++              const end = new Date(cell.start.getTime() + 3_600_000);
++              const when = `${formatHour(cell.start)} to ${formatHour(end)}`;
++              const what =
++                cell.severity === "none" ? "quiet" : kindLabel[cell.severity].toLowerCase();
++              return (
++                <li
++                  key={cell.start.getTime()}
++                  className={`quiet-hour ${cell.severity}`}
++                  aria-label={`${when}: ${what}`}
++                >
++                  <span className="quiet-hour-clock">{cell.start.getHours()}</span>
++                  {cell.severity !== "none" && (
++                    <span className="quiet-hour-mark" aria-hidden="true">
++                      {severityMark[cell.severity]}
++                    </span>
++                  )}
++                </li>
++              );
++            })}
++          </ol>
++
++          <p className="muted quiet-summary">{summarizeHours(cells)}</p>
++
++          <ul className="quiet-legend">
++            <li>
++              <span className="swatch noise" aria-hidden="true" /> Noise
++            </li>
++            <li>
++              <span className="swatch occupancy" aria-hidden="true" /> Occupancy
++            </li>
++            <li>
++              <span className="swatch offline" aria-hidden="true" /> Device offline
++            </li>
++            <li>
++              <span className="swatch none" aria-hidden="true" /> Quiet
++            </li>
++          </ul>
++        </>
++      )}
++    </section>
++  );
++}
+diff --git a/web/src/format.ts b/web/src/format.ts
+index bfd22da..6d07182 100644
+--- a/web/src/format.ts
++++ b/web/src/format.ts
+@@ -1,5 +1,7 @@
+ /** Display helpers. Pure, so they are the easy thing to unit test. */
+ 
++import type { IncidentKind } from "./api.ts";
++
+ export function formatStarted(iso: string, now: Date = new Date()): string {
+   const started = new Date(iso);
+   const minutes = Math.round((now.getTime() - started.getTime()) / 60_000);
+@@ -15,3 +17,65 @@ export function formatPeak(peakDb: number | null): string {
+ }
+ 
+ export const kindLabel = { noise: "Noise", occupancy: "Occupancy", offline: "Device offline" };
++
++export type HourSeverity = IncidentKind | "none";
++
++const severityRank: Record<HourSeverity, number> = { noise: 3, occupancy: 2, offline: 1, none: 0 };
++
++export type HourCell = {
++  /** Start of the hour this cell covers, local time. */
++  start: Date;
++  /** The worst thing that started in this hour. */
++  severity: HourSeverity;
++};
++
++const HOUR_MS = 3_600_000;
++
++/**
++ * The last 24 whole hours up to `now`, oldest first, each tagged with the worst incident kind
++ * that started inside it. Incidents older than 24 hours, in the future, or with an unparseable
++ * start time are ignored.
++ */
++export function last24HourCells(
++  incidents: { kind: IncidentKind; startedAt: string }[],
++  now: Date = new Date(),
++): HourCell[] {
++  const currentHourStart = Math.floor(now.getTime() / HOUR_MS) * HOUR_MS;
++  const cells: HourCell[] = [];
++  for (let hoursAgo = 23; hoursAgo >= 0; hoursAgo--) {
++    cells.push({ start: new Date(currentHourStart - hoursAgo * HOUR_MS), severity: "none" });
++  }
++  for (const incident of incidents) {
++    const started = new Date(incident.startedAt).getTime();
++    if (Number.isNaN(started) || started > now.getTime()) continue;
++    const hourStart = Math.floor(started / HOUR_MS) * HOUR_MS;
++    const hoursAgo = (currentHourStart - hourStart) / HOUR_MS;
++    if (hoursAgo < 0 || hoursAgo > 23) continue;
++    const cell = cells[23 - hoursAgo];
++    if (severityRank[incident.kind] > severityRank[cell.severity]) {
++      cell.severity = incident.kind;
++    }
++  }
++  return cells;
++}
++
++/** "2 PM" for 14:00, in local time. */
++export function formatHour(date: Date): string {
++  const hour = date.getHours();
++  const suffix = hour < 12 ? "AM" : "PM";
++  const twelve = hour % 12 === 0 ? 12 : hour % 12;
++  return `${twelve} ${suffix}`;
++}
++
++/** Plain-language tally of a strip of hour cells, so the colours never carry the meaning alone. */
++export function summarizeHours(cells: HourCell[]): string {
++  const counts: Record<HourSeverity, number> = { noise: 0, occupancy: 0, offline: 0, none: 0 };
++  for (const cell of cells) counts[cell.severity]++;
++  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
++  const parts: string[] = [];
++  if (counts.noise > 0) parts.push(plural(counts.noise, "noisy hour"));
++  if (counts.occupancy > 0) parts.push(plural(counts.occupancy, "occupancy hour"));
++  if (counts.offline > 0) parts.push(plural(counts.offline, "device-offline hour"));
++  parts.push(plural(counts.none, "quiet hour"));
++  return `Last 24 hours: ${parts.join(", ")}.`;
++}
+diff --git a/web/src/styles.css b/web/src/styles.css
+index 56f2bb0..7d333bc 100644
+--- a/web/src/styles.css
++++ b/web/src/styles.css
+@@ -6,6 +6,10 @@
+   --line: #e4e0d9;
+   --accent: #1f6f5c;
+   --alert: #a8321e;
++  --noise: var(--alert);
++  --occupancy: #b26a00;
++  --offline: #5f6b76;
++  --quiet: #efede7;
+   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+ }
+ 
+@@ -24,6 +28,62 @@ h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color
+ main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 1.25rem; align-items: start; }
+ @media (max-width: 48rem) { main { grid-template-columns: 1fr; } }
+ 
++.home-view { display: grid; gap: 1.25rem; align-content: start; }
++
++.quiet-hours {
++  list-style: none;
++  margin: 0.75rem 0 0;
++  padding: 0 0 0.25rem;
++  display: flex;
++  gap: 0.15rem;
++  overflow-x: auto;
++}
++.quiet-hours:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 0.4rem; }
++
++.quiet-hour {
++  flex: 0 0 auto;
++  min-width: 2.1rem;
++  padding: 0.3rem 0;
++  border-radius: 0.4rem;
++  background: var(--quiet);
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 0.1rem;
++  font-size: 0.72rem;
++  font-variant-numeric: tabular-nums;
++}
++.quiet-hour-clock { line-height: 1; }
++.quiet-hour-mark { font-size: 0.8rem; font-weight: 700; line-height: 1; }
++.quiet-hour.noise { background: var(--noise); color: white; }
++.quiet-hour.occupancy { background: var(--occupancy); color: white; }
++.quiet-hour.offline { background: var(--offline); color: white; }
++
++.quiet-summary { margin: 0.6rem 0 0; font-size: 0.85rem; }
++
++.quiet-legend {
++  list-style: none;
++  display: flex;
++  flex-wrap: wrap;
++  gap: 0.25rem 1rem;
++  margin: 0.75rem 0 0;
++  padding: 0;
++  font-size: 0.8rem;
++  color: var(--muted);
++}
++.quiet-legend li { display: flex; align-items: center; gap: 0.4rem; }
++.swatch {
++  width: 0.9rem;
++  height: 0.9rem;
++  border-radius: 0.25rem;
++  border: 1px solid var(--line);
++  display: inline-block;
++}
++.swatch.noise { background: var(--noise); }
++.swatch.occupancy { background: var(--occupancy); }
++.swatch.offline { background: var(--offline); }
++.swatch.none { background: var(--quiet); }
++
+ .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 0.75rem; padding: 1rem; }
+ .muted { color: var(--muted); margin: 0; }
+ .error { color: var(--alert); }
+diff --git a/web/tests/format.test.ts b/web/tests/format.test.ts
+index 6b1fabe..a8698fd 100644
+--- a/web/tests/format.test.ts
++++ b/web/tests/format.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from "vitest";
+-import { formatPeak, formatStarted } from "../src/format.ts";
++import { formatHour, formatPeak, formatStarted, last24HourCells, summarizeHours } from "../src/format.ts";
+ 
+ const now = new Date("2026-11-01T12:00:00Z");
+ 
+@@ -26,3 +26,80 @@ describe("formatPeak", () => {
+     expect(formatPeak(86)).toBe("86 dB");
+   });
+ });
++
++describe("last24HourCells", () => {
++  it("returns 24 cells, oldest first, ending at the current hour", () => {
++    const cells = last24HourCells([], now);
++    expect(cells).toHaveLength(24);
++    expect(cells[0].start).toEqual(new Date("2026-10-31T13:00:00Z"));
++    expect(cells[23].start).toEqual(new Date("2026-11-01T12:00:00Z"));
++    expect(cells.every((cell) => cell.severity === "none")).toBe(true);
++  });
++
++  it("tags the hour an incident started in", () => {
++    const cells = last24HourCells([{ kind: "offline", startedAt: "2026-11-01T09:30:00Z" }], now);
++    expect(cells[20].start).toEqual(new Date("2026-11-01T09:00:00Z"));
++    expect(cells[20].severity).toBe("offline");
++  });
++
++  it("keeps the worst kind when several incidents share an hour", () => {
++    const cells = last24HourCells(
++      [
++        { kind: "offline", startedAt: "2026-11-01T09:10:00Z" },
++        { kind: "occupancy", startedAt: "2026-11-01T09:50:00Z" },
++        { kind: "noise", startedAt: "2026-11-01T09:59:00Z" },
++      ],
++      now,
++    );
++    expect(cells[20].severity).toBe("noise");
++  });
++
++  it("ranks occupancy above offline", () => {
++    const cells = last24HourCells(
++      [
++        { kind: "offline", startedAt: "2026-11-01T09:10:00Z" },
++        { kind: "occupancy", startedAt: "2026-11-01T09:50:00Z" },
++      ],
++      now,
++    );
++    expect(cells[20].severity).toBe("occupancy");
++  });
++
++  it("ignores incidents older than 24 hours, in the future, or unparseable", () => {
++    const cells = last24HourCells(
++      [
++        { kind: "noise", startedAt: "2026-10-31T12:59:59Z" },
++        { kind: "noise", startedAt: "2026-11-01T12:00:01Z" },
++        { kind: "noise", startedAt: "not a date" },
++      ],
++      now,
++    );
++    expect(cells.every((cell) => cell.severity === "none")).toBe(true);
++  });
++});
++
++describe("formatHour", () => {
++  it("formats hours in 12-hour local time", () => {
++    expect(formatHour(new Date(2026, 10, 1, 14))).toBe("2 PM");
++    expect(formatHour(new Date(2026, 10, 1, 9))).toBe("9 AM");
++    expect(formatHour(new Date(2026, 10, 1, 0))).toBe("12 AM");
++    expect(formatHour(new Date(2026, 10, 1, 12))).toBe("12 PM");
++  });
++});
++
++describe("summarizeHours", () => {
++  it("tallies each severity in words", () => {
++    const cells = last24HourCells(
++      [
++        { kind: "noise", startedAt: "2026-11-01T11:10:00Z" },
++        { kind: "noise", startedAt: "2026-11-01T05:10:00Z" },
++        { kind: "occupancy", startedAt: "2026-11-01T09:10:00Z" },
++        { kind: "offline", startedAt: "2026-11-01T03:10:00Z" },
++      ],
++      now,
++    );
++    expect(summarizeHours(cells)).toBe(
++      "Last 24 hours: 2 noisy hours, 1 occupancy hour, 1 device-offline hour, 20 quiet hours.",
++    );
++  });
++});
